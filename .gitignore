@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+projectwork_grading.pdf
+
+# Model checkpoints
+*.pth
+*.pt
