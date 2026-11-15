@@ -224,3 +224,5 @@ projectwork_grading.pdf
 # Model checkpoints
 *.pth
 *.pt
+# Training logs
+logs/
