@@ -30,8 +30,8 @@ def generate_K_source_signals(K,T,gamma,rng):
     s = np.diag(np.sqrt(gammas)) @ (rng.standard_normal((K,T))+1j*rng.standard_normal((K,T)))/np.sqrt(2)
     return s
 
-def generate_snapshot_dataset(nof_snapshots,nof_signals,m_elems,SNRs,fov_start,fov_end,samples_per_snr):
-    rng = np.random.default_rng(73)
+def generate_snapshot_dataset(nof_snapshots,nof_signals,m_elems,SNRs,fov_start,fov_end,samples_per_snr,seed=73):
+    rng = np.random.default_rng(seed)
     # init dicts
     resp_dict = {}
     doa_dict = {}
