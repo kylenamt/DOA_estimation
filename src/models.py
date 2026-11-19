@@ -1,17 +1,26 @@
+import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
+
+class InputNorm(nn.Module):
+    def forward(self, x):
+        power = x.pow(2).mean(1, keepdim=True)
+        return torch.cat([x / power.sqrt(), torch.log10(power)], 1)
 
 
 class BaseDOAModel(nn.Module):
-    def __init__(self, d_model, ):
-        super(BaseDOAModel, self).__init__()
-        self.d_model = d_model
+    def __init__(self, d_model, input_norm=False):
+        super().__init__()
+        self.input_norm = InputNorm() if input_norm else nn.Identity()
+        d_in = d_model + 1 if input_norm else d_model
+
+        # Hidden layers (paper Fig. 1)
         self.net = nn.Sequential(
-            nn.Linear(d_model, 64),
+            nn.Linear(d_in, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Linear(64, 64), 
-            nn.BatchNorm1d(64),  
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Linear(64, 128),
             nn.BatchNorm1d(128),
@@ -31,28 +40,35 @@ class BaseDOAModel(nn.Module):
             nn.Linear(2048, 256),
             nn.BatchNorm1d(256),
             nn.ReLU())
-        self.classification_layer = nn.Sequential(
-            nn.Linear(256, 4),
-            nn.Softmax(dim=1)
-        )
-        self.DOA_1 = nn.Sequential(
-            nn.Linear(256, 1),)
-        self.DOA_2 = nn.Sequential(
-            nn.Linear(256, 2),)
-        self.DOA_3 = nn.Sequential(
-            nn.Linear(256, 3),)
-        self.DOA_4 = nn.Sequential(
-            nn.Linear(256, 4),)
+
+        # Heads: number of sources, DOAs for K = 1..4
+        self.classification_layer = nn.Sequential(nn.Linear(256, 4), nn.Softmax(dim=1))
+        self.DOA_1 = nn.Sequential(nn.Linear(256, 1))
+        self.DOA_2 = nn.Sequential(nn.Linear(256, 2))
+        self.DOA_3 = nn.Sequential(nn.Linear(256, 3))
+        self.DOA_4 = nn.Sequential(nn.Linear(256, 4))
 
     def forward(self, x):
-        x = self.net(x)
-        classification_output = self.classification_layer(x)
-        doa_1_output = self.DOA_1(x)
-        doa_2_output = self.DOA_2(x)
-        doa_3_output = self.DOA_3(x)
-        doa_4_output = self.DOA_4(x)
+        x = self.net(self.input_norm(x))
+        return self.classification_layer(x), self.DOA_1(x), self.DOA_2(x), self.DOA_3(x), self.DOA_4(x)
 
-        return classification_output, doa_1_output, doa_2_output, doa_3_output, doa_4_output
-        
-            
-            
+
+class ResidualBlock(nn.Module):
+    def __init__(self, d):
+        super().__init__()
+        self.linear = nn.Linear(d, d)
+        self.bn = nn.BatchNorm1d(d)
+
+    def forward(self, x):
+        return x + torch.relu(self.bn(self.linear(x)))
+
+
+class ResidualHeadModel(BaseDOAModel):
+    def __init__(self, d_model, input_norm=False):
+        super().__init__(d_model, input_norm)
+
+        # DOA heads: 3 residual layers of 256, then K outputs
+        self.DOA_1 = nn.Sequential(ResidualBlock(256), ResidualBlock(256), ResidualBlock(256), nn.Linear(256, 1))
+        self.DOA_2 = nn.Sequential(ResidualBlock(256), ResidualBlock(256), ResidualBlock(256), nn.Linear(256, 2))
+        self.DOA_3 = nn.Sequential(ResidualBlock(256), ResidualBlock(256), ResidualBlock(256), nn.Linear(256, 3))
+        self.DOA_4 = nn.Sequential(ResidualBlock(256), ResidualBlock(256), ResidualBlock(256), nn.Linear(256, 4))

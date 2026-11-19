@@ -1,5 +1,5 @@
 # For GPU (CUDA) PyTorch, install torch first:
-#   pip install torch --index-url https://download.pytorch.org/whl/cu126
+#   pip install torch --index-url https://download.pytorch.org/whl/cu130
 torch
 numpy
 matplotlib
